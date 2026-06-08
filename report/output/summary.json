@@ -1,0 +1,25 @@
+{
+  "total_statement_rows": 2071,
+  "by_band": {
+    "green": 117,
+    "amber": 958,
+    "red": 996
+  },
+  "by_tier": {
+    "exact": 117,
+    "scored": 958,
+    "unmatched": 996
+  },
+  "auto_matched_green": 117,
+  "routed_to_review": 1954,
+  "measured": {
+    "truly_matchable": 1408,
+    "claimed": 1075,
+    "correct": 981,
+    "precision": 0.9126,
+    "match_rate": 0.6967,
+    "green_claimed": 117,
+    "green_correct": 116,
+    "green_precision": 0.9915
+  }
+}

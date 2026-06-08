@@ -64,7 +64,16 @@ def parse_allocation_label(label):
     # Each key starts with something like "USD_". Split before a comma that is followed
     # by such a prefix, so commas inside the attribute text are left alone.
     parts = re.split(r",(?=[A-Z]{3}_)", label)
-    return [p.strip() for p in parts if p.strip()]
+    cleaned = [p.strip() for p in parts if p.strip()]
+    # A prediction is a set: the benchmark scores on set membership, so duplicate keys are
+    # noise. Dedupe while preserving first-seen order.
+    seen = set()
+    unique = []
+    for key in cleaned:
+        if key not in seen:
+            seen.add(key)
+            unique.append(key)
+    return unique
 
 
 def _ledger_row(row):

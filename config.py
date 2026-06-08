@@ -4,6 +4,7 @@ rest of the pipeline never hardcodes them. Adjust here, not in the logic."""
 from pathlib import Path
 
 DATA_DIR = Path(__file__).parent / "data"
+OUTPUT_DIR = Path(__file__).parent / "report" / "output"
 
 # BenchRec ships three splits. We build and measure on train (it has the labels);
 # eval and solution are held back as an untouched final test.
