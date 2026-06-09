@@ -80,7 +80,7 @@ def main():
     # LLM residue tier: brief the reviewer on the queue in plain English. Runs only after
     # the deterministic outputs above are on disk, so it can never block or alter them. With
     # no endpoint reachable it does nothing but report that it skipped.
-    briefing, llm_status = llm.run(review_queue, statement_by_id)
+    briefing, llm_status = llm.run(review_queue, statement_by_id, weights)
     review_path = config.OUTPUT_DIR / "review.json"
     if briefing:
         llm.write_review(briefing, review_path)

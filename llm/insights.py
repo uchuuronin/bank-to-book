@@ -19,7 +19,6 @@ caller can keep the top few and drop the rest.
 
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-import re
 
 import config
 from matching import compare
@@ -37,13 +36,6 @@ class Finding:
     materiality: float
     summary: str            # a plain factual statement of the finding, already specific
     refs: list[str] = field(default_factory=list)
-
-
-def _distinctive_words(text):
-    """The human-readable words in a reference string, ignoring the long numeric codes that
-    are unique per transaction and say nothing in aggregate. Mirrors the matcher's instinct
-    that letters carry the recurring meaning, digits carry the per-row identity."""
-    return [w.upper() for w in re.findall(r"[A-Za-z]{%d,}" % config.MIN_TOKEN_LENGTH, text)]
 
 
 def _concentration(rows):
@@ -132,54 +124,51 @@ def _duplicates(rows):
     )
 
 
-def _round_numbers(rows):
-    """Suspiciously round amounts (exact thousands, but not the large lines concentration
-    already covers) are worth a glance: small round sums are the shape of manual journal
-    entries, estimates, and round-sum transfers rather than organic invoiced amounts. A
-    cluster of them in the queue is a pattern, not a coincidence."""
-    round_rows = [
-        r for r in rows
-        if r.amount != 0 and round(abs(r.amount)) % 1000 == 0 and abs(r.amount) < 100000
-    ]
-    if len(round_rows) < 3:
-        return None
-    value = sum(abs(r.amount) for r in round_rows)
-    return Finding(
-        kind="round_number",
-        materiality=value,
-        summary=(
-            f"{len(round_rows)} lines are exact multiples of 1,000 (totalling {value:,.0f}), "
-            f"the shape of manual entries or transfers rather than invoiced amounts."
-        ),
-        refs=[r.row_id for r in round_rows][:10],
-    )
-
-
-def _recurring_reference(rows):
-    """A word that recurs across many reference strings usually names a counterparty or a
-    payment type (a processor, a payroll run, a recurring transfer). If one word dominates
-    the queue, those lines are probably one pattern to clear in a batch, not many separate
-    puzzles, so naming it changes how the reviewer works the pile."""
+def _recurring_reference(rows, weights):
+    """A reference fragment that recurs across many rows can name a counterparty or payment
+    type worth clearing as a batch, but only if the fragment actually distinguishes anything.
+    Counting raw word frequency is a trap on this data: the most common word is whatever
+    boilerplate sits on nearly every row (a bank's standing text, a product marker), which
+    names no counterparty and helps no reviewer. So we rank candidates by recurrence weighted
+    by rarity, using the same IDF model the matcher trusts to tell identity from boilerplate.
+    A token on almost every row scores near zero however often it appears; a distinctive code
+    that recurs on a meaningful minority rises to the top. If nothing clears that bar, we stay
+    quiet rather than name a ubiquitous word."""
     counts = Counter()
-    rows_with_word = defaultdict(list)
+    rows_with_token = defaultdict(list)
     for r in rows:
-        seen = set(_distinctive_words(r.references))
-        for w in seen:
-            counts[w] += 1
-            rows_with_word[w].append(r.row_id)
+        for token in compare._distinctive_tokens(r):
+            counts[token] += 1
+            rows_with_token[token].append(r.row_id)
     if not counts:
         return None
-    word, n = counts.most_common(1)[0]
-    if n < max(5, len(rows) * 0.05):
-        return None  # nothing recurs often enough to be worth singling out
+
+    # Score each recurring token by how often it appears times how rare it is overall, so a
+    # frequent-but-distinctive code wins and frequent boilerplate does not. Only tokens that
+    # recur enough to be a "pattern" are eligible.
+    floor = max(5, int(len(rows) * 0.05))
+    scored = [
+        (token, n, n * weights.weight(token))
+        for token, n in counts.items()
+        if n >= floor
+    ]
+    if not scored:
+        return None
+    token, n, _ = max(scored, key=lambda t: t[2])
+
+    # If even the best-scoring token is effectively ubiquitous (low rarity weight), there is
+    # no distinctive recurring reference to report.
+    if weights.weight(token) < 1.0:
+        return None
+
     return Finding(
         kind="recurring_reference",
         materiality=float(n),
         summary=(
-            f"The reference text \"{word.title()}\" recurs on {n} lines, likely one "
-            f"counterparty or payment type that can be reviewed as a batch."
+            f"The reference code \"{token}\" recurs on {n} lines, likely one counterparty or "
+            f"payment type that can be reviewed as a batch."
         ),
-        refs=rows_with_word[word][:10],
+        refs=rows_with_token[token][:10],
     )
 
 
@@ -205,30 +194,45 @@ def _date_spread(rows):
     )
 
 
-def profile(review_queue, statement_by_id):
-    """Run every detector over the queue and return the findings that fired, most material
-    first, plus the plain counts the caller needs for the overview line. The amber and red
-    bands are profiled separately, because an unconfirmed match and a line with no candidate
-    at all are different problems a reviewer treats differently."""
+def profile(review_queue, statement_by_id, weights):
+    """Run every detector over the queue and return the findings that fired, plus the plain
+    counts the caller needs for the overview line. The amber and red bands are profiled
+    together here; the counts keep them separate for the overview, because an unconfirmed
+    match and a line with no candidate are different problems a reviewer treats differently.
+
+    Detectors measure different things (dollars, line counts) that do not share a scale, so
+    we do not sort findings against each other numerically, which would pit a billion-dollar
+    concentration against a line count and rank them meaninglessly. Instead we keep a fixed
+    reviewer-priority order: what holds the most value, then duplicates worth correcting, then
+    the batch-shaped patterns that change how the pile is worked."""
     amber_rows, red_rows = [], []
     for d in review_queue:
         row = statement_by_id.get(d.statement_id)
         if row is None:
             continue
         (amber_rows if d.band == AMBER else red_rows).append(row)
+    rows = amber_rows + red_rows
 
-    findings = []
-    for detector in (_concentration, _largest_single, _duplicates, _round_numbers,
-                     _recurring_reference, _date_spread):
-        # Concentration and the largest-line call overlap, so prefer concentration when it
-        # fired and let largest_single stand in only when value is too spread for it.
-        result = detector(amber_rows + red_rows)
-        if result is not None:
-            findings.append(result)
+    # Each detector returns a Finding or None. Most read only the rows; the recurring-
+    # reference detector also needs the IDF model to tell a distinctive code from boilerplate.
+    candidates = [
+        _concentration(rows),
+        _largest_single(rows),
+        _duplicates(rows),
+        _recurring_reference(rows, weights),
+        _date_spread(rows),
+    ]
+    findings = [f for f in candidates if f is not None]
+
+    # Concentration and the largest-single call overlap, so when concentration fired (value
+    # is top-heavy) the standalone largest-line note is redundant and we drop it.
     if any(f.kind == "concentration" for f in findings):
         findings = [f for f in findings if f.kind != "largest"]
 
-    findings.sort(key=lambda f: f.materiality, reverse=True)
+    # Fixed reviewer-priority order rather than a numeric sort across incomparable units.
+    priority = {"concentration": 0, "largest": 0, "duplicate": 1,
+                "recurring_reference": 2, "date_spread": 3}
+    findings.sort(key=lambda f: priority.get(f.kind, 9))
 
     counts = {
         "total": len(amber_rows) + len(red_rows),

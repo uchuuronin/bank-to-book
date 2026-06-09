@@ -1,0 +1,6 @@
+# Python 3.10+
+# Everything else the tool uses (csv, json, urllib, dataclasses, etc.) is standard library.
+pandas==2.2.2
+numpy==1.26.4
+scipy==1.13.1
+pydantic==2.7.1

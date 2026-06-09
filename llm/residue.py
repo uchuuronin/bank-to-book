@@ -81,14 +81,14 @@ def _deterministic_briefing(findings, counts):
     }
 
 
-def run(review_queue, statement_by_id):
+def run(review_queue, statement_by_id, weights):
     """Compute the findings, then phrase them with the model. Returns (briefing_dict_or_None,
     status). The findings are computed regardless, so even with no model reachable the
     reviewer gets a grounded briefing rather than nothing."""
     if not review_queue:
         return None, "review queue empty, no briefing needed"
 
-    findings, counts = insights.profile(review_queue, statement_by_id)
+    findings, counts = insights.profile(review_queue, statement_by_id, weights)
     if not findings:
         # Nothing material stood out. Say that plainly rather than manufacture observations.
         briefing = {
