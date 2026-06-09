@@ -17,7 +17,8 @@ from ingest import load
 from matching import exact, scored
 from matching.token_weights import TokenWeights
 from verify import run as verify_run, GREEN, AMBER, RED
-from report import write_results, build_summary, write_summary
+from report import write_results, build_summary, write_summary, write_report
+import llm
 
 
 def _is_correct(predicted, truth):
@@ -76,6 +77,20 @@ def main():
     write_results(decisions, results_path)
     write_summary(summary, summary_path)
 
+    # LLM residue tier: brief the reviewer on the queue in plain English. Runs only after
+    # the deterministic outputs above are on disk, so it can never block or alter them. With
+    # no endpoint reachable it does nothing but report that it skipped.
+    briefing, llm_status = llm.run(review_queue, statement_by_id)
+    review_path = config.OUTPUT_DIR / "review.json"
+    if briefing:
+        llm.write_review(briefing, review_path)
+
+    # The human-readable report: same numbers as summary.json, rendered as a single
+    # self-contained HTML page with the briefing at the top. Built last so it can include
+    # the briefing when one was produced.
+    report_path = config.OUTPUT_DIR / "report.html"
+    write_report(decisions, summary, briefing, report_path)
+
     print(f"statement rows processed:  {len(data.statement):,}")
     print(f"  quarantined at ingest:   {len(data.quarantined):,}")
     print()
@@ -98,7 +113,11 @@ def main():
         print(f"match rate:          {measured['match_rate']:.1%}  "
               f"({measured['correct']:,} of {measured['truly_matchable']:,} truly matchable)")
     print()
-    print(f"wrote {results_path.name} and {summary_path.name}")
+    print(f"LLM residue tier: {llm_status}")
+    outputs = f"{results_path.name}, {summary_path.name}, {report_path.name}"
+    if briefing:
+        outputs += f", {review_path.name}"
+    print(f"wrote {outputs}")
 
     # Exit code in the spirit of a CI-ready tool: 0 if nothing needs review, 1 if the
     # review queue is non-empty, 2 reserved for errors (raised exceptions exit non-zero

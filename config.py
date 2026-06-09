@@ -68,3 +68,25 @@ TOKEN_BONUS_SATURATION = 8.0   # rarity-weight at which the token bonus is effec
 # left for the split tier or routed to review rather than matched on weak evidence, in
 # line with the benchmark's preference to skip rather than mismatch.
 MATCH_ACCEPT_THRESHOLD = 0.75
+
+# LLM residue tier. The deterministic cascade is the tool; the LLM only explains the
+# review queue (amber and red rows) in plain English and, for amber, comments on what
+# makes the proposed match plausible or doubtful. It never produces or alters a number.
+#
+# Default is a fully local Ollama instance: nothing leaves the machine, no key, no card,
+# no rate limit. The data being reconciled is financial, so keeping the LLM step local is
+# the right default rather than a fallback. Any OpenAI-compatible endpoint works by
+# changing LLM_BASE_URL and LLM_MODEL (e.g. Gemini's compatibility layer), with the key in
+# the LLM_API_KEY environment variable so it never lives in the repo.
+#
+# With Ollama not running (or no remote endpoint reachable), the tier degrades gracefully:
+# the pipeline still produces its full deterministic output and simply skips explanations.
+import os
+
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:11434/v1")  # local Ollama
+LLM_MODEL = os.environ.get("LLM_MODEL", "llama3.1")
+LLM_API_KEY = os.environ.get("LLM_API_KEY", "")   # blank for local; set for remote providers
+LLM_TEMPERATURE = 0.0
+LLM_MAX_REVIEW_ROWS = 50      # cap rows sent per run, so latency or a free tier is never a bottleneck
+LLM_RETRY_ATTEMPTS = 2        # retry once on a schema-invalid or transport failure
+LLM_TIMEOUT_SECONDS = 60      # local models can be slower to first token than a hosted API
