@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 import re
 
 import config
+from matching import compare
 from verify import AMBER, RED
 
 
@@ -89,30 +90,43 @@ def _largest_single(rows):
 
 
 def _duplicates(rows):
-    """Lines that share an amount, a date, and an account are candidate double-postings: the
-    same payment entered twice, or two genuinely distinct payments that happen to coincide.
-    Either way the reviewer wants them surfaced together rather than hit one at a time."""
+    """Candidate double-postings: the same payment entered twice. The naive test, lines that
+    share an amount, a date and an account, fires far too readily on this data, where a busy
+    feed day puts hundreds of distinct transactions on one date in one account and exact-
+    amount collisions are then ordinary, not suspicious. A real duplicate also repeats the
+    transaction's own reference, so we require a shared distinctive reference token (the same
+    identity signal the matcher trusts) on top of amount, date and account. That collapses
+    the coincidences and leaves the lines a reviewer would actually treat as duplicates.
+
+    Ranked by how many duplicate groups there are, not by their dollar value, so one large
+    coincidental pair cannot push this to the top of the briefing ahead of a real pattern."""
     groups = defaultdict(list)
     for r in rows:
         if r.value_date is None:
             continue
-        key = (round(r.amount, 2), r.value_date, r.account)
+        tokens = compare._distinctive_tokens(r)
+        if not tokens:
+            continue  # without a reference token we cannot tell a duplicate from a coincidence
+        # Key on the rarest shareable token so genuine repeats of one transaction group
+        # together, alongside amount, date and account.
+        signature_token = min(tokens)
+        key = (round(r.amount, 2), r.value_date, r.account, signature_token)
         groups[key].append(r)
     dup_groups = [g for g in groups.values() if len(g) > 1]
     if not dup_groups:
         return None
     dup_lines = sum(len(g) for g in dup_groups)
-    biggest_group = max(dup_groups, key=lambda g: abs(g[0].amount) * len(g))
+    biggest_group = max(dup_groups, key=lambda g: len(g))
     amount = abs(biggest_group[0].amount)
     date = biggest_group[0].value_date.isoformat()
     group_word = "group" if len(dup_groups) == 1 else "groups"
     return Finding(
         kind="duplicate",
-        materiality=amount * dup_lines,
+        materiality=float(dup_lines),
         summary=(
-            f"{dup_lines} lines fall into {len(dup_groups)} {group_word} sharing an exact "
-            f"amount, date and account, which may be double-postings; the largest such group "
-            f"is {len(biggest_group)} lines of {amount:,.0f} on {date}."
+            f"{dup_lines} lines fall into {len(dup_groups)} {group_word} that repeat an exact "
+            f"amount, date, account and reference code, the shape of a double-posting; the "
+            f"largest such group is {len(biggest_group)} lines of {amount:,.0f} on {date}."
         ),
         refs=[r.row_id for g in dup_groups for r in g][:10],
     )
