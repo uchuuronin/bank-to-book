@@ -5,7 +5,7 @@ A token shared by hundreds of rows (an account marker, a bank's standing prefix)
 identifies nothing, and matching on it produces false pairs. A token that appears on one
 ledger row and one statement row is a strong identity signal. This prints the frequency
 distribution so we know which regime we're in, and confirms the many-to-one direction
-while we're here. Run with `python -m matching.diagnose_tokens`.
+while we're here. Run with `python -m diagnostics.diagnose_tokens`.
 """
 
 from collections import Counter

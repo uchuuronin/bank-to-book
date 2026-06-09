@@ -5,7 +5,8 @@ reads the labelled training split and reports what's actually there: the columns
 rows split into ledger (A) vs statement (B) sides, what the allocation-key label looks
 like, the match cardinality (1:1 vs 1:many vs unmatched), and the amount/date conventions.
 
-Run it once, read the output, then we build. It writes nothing and changes nothing.
+Run with `python -m diagnostics.inspect_data` from the project root. It writes nothing and
+changes nothing.
 """
 
 import sys

@@ -3,7 +3,7 @@ tier's errors, so look at the raw failing rows instead of aggregate stats. The e
 concentrate in single-candidate matches whose true answer is no-match or a split. Print
 those rows in full so we can see what a human would notice: amount exactness, date gap,
 how the matched ledger row's own allocation relates to the statement's truth. Run with
-`python -m matching.inspect_errors`.
+`python -m diagnostics.inspect_errors`.
 """
 
 from ingest import load

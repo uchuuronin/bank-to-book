@@ -4,7 +4,7 @@ A split is a statement row whose true allocation points to several ledger rows. 
 subset-sum matcher to be the right tool, those ledger rows' amounts should sum to the
 statement amount within tolerance. This checks that assumption and sizes the problem: how
 many ledger rows per split, and how often they actually sum. If they don't sum, subset-sum
-is the wrong approach and we find out now. Run with `python -m matching.diagnose_splits`.
+is the wrong approach and we find out now. Run with `python -m diagnostics.diagnose_splits`.
 """
 
 from collections import Counter

@@ -3,7 +3,7 @@ show several statement rows sharing one set of ledger rows under a common alloca
 a split is grouped by shared allocation membership, not by an amount sum. This looks at
 the actual allocation-key strings in a few split groups to see what connects them, so we
 can build the right grouping rule instead of guessing. Run with
-`python -m matching.inspect_splits`.
+`python -m diagnostics.inspect_splits`.
 """
 
 from collections import Counter

@@ -2,7 +2,7 @@
 rather than the scorer choosing badly. For statement rows that have a single true match,
 this checks whether the correct ledger row even made it into the candidate set, and if
 not, why: no shared token at all, or shared tokens filtered out by the distinctive-token
-rule. Run with `python -m matching.diagnose_candidates`.
+rule. Run with `python -m diagnostics.diagnose_candidates`.
 """
 
 import re

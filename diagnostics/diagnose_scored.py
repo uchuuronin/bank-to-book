@@ -4,7 +4,7 @@ allocation is a coincidental amount-twin the resolver picked wrong (tighten the 
 wrong match whose true answer was several allocations is a split that should never have
 been matched 1:1 (leave it for the split tier). We also check whether the wrong matches
 had any reference-token support, since token-less commits are the ones a higher threshold
-would catch. Run with `python -m matching.diagnose_scored`.
+would catch. Run with `python -m diagnostics.diagnose_scored`.
 """
 
 from collections import Counter

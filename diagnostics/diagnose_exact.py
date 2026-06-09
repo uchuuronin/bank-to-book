@@ -4,7 +4,7 @@
 coincidental pairings. Before tightening the rule we want to see what the wrong matches
 have in common: are the amounts only loosely equal (tolerance too wide at billion scale),
 are dates landing at the edge of the window, or is the matched ledger row simply not the
-one the truth points to. Run with `python -m matching.diagnose_exact`.
+one the truth points to. Run with `python -m diagnostics.diagnose_exact`.
 """
 
 from ingest import load

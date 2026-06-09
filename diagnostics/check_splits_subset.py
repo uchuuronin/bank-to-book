@@ -3,7 +3,7 @@ A split row's truth is several allocations; if the scored tier matched that row 
 ledger row whose allocation is one of those true allocations, that single-element
 prediction is a valid subset, so it should count as correct. This checks how many split
 rows the scored tier already gets right under the subset rule, which decides whether a
-dedicated split solver is even needed. Run with `python -m matching.check_splits_subset`.
+dedicated split solver is even needed. Run with `python -m diagnostics.check_splits_subset`.
 """
 
 from ingest import load
